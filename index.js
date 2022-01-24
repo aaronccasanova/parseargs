@@ -47,9 +47,9 @@ function getMainArgs() {
   return ArrayPrototypeSlice(process.argv, 2);
 }
 
-function storeOptionValue(parseOptions, option, value, result) {
-  const multiple = parseOptions.multiples &&
-    ArrayPrototypeIncludes(parseOptions.multiples, option);
+function storeOptionValue(parseOptions, arg, value, result) {
+  const option = parseOptions.args[arg]?.name || arg;
+  const multiple = parseOptions.args[arg]?.multiples
 
   // Flags
   result.flags[option] = true;
@@ -80,6 +80,23 @@ const parseArgs = (
   }
   if (options.withValue !== undefined && !ArrayIsArray(options.withValue)) {
     throw new Error('Whoops! options.withValue should be an array.');
+  }
+
+  if (options.args) {
+    Object.entries(options.args).forEach((entry) => {
+      const [argKey, argValue] = entry
+
+      // Set argKey if argValue.name is not defined.
+      if (!argValue.name) argValue.name = argKey
+
+      // Add argValue reference to args for argValue name.
+      if (argValue.name !== argKey)
+        options.args[argValue.name] = argValue
+
+      // Add argValue reference to args for short name.
+      if (argValue.short)
+        options.args[argValue.short] = argValue
+    })
   }
 
   const result = {
@@ -115,9 +132,9 @@ const parseArgs = (
 
         // If withValue option is specified, take 2nd part after '=' as value,
         // else set value as undefined
-        const val = options.withValue &&
-          ArrayPrototypeIncludes(options.withValue, argParts[0]) ?
-          argParts[1] : undefined;
+        const val = options.args[argParts[0]]?.withValue
+          ? argParts[1]
+          : undefined
         storeOptionValue(options, argParts[0], val, result);
       } else if (pos + 1 < argv.length &&
         !StringPrototypeStartsWith(argv[pos + 1], '-')
@@ -129,9 +146,7 @@ const parseArgs = (
         // value and then increment pos so that we don't re-evaluate that
         // arg, else set value as undefined ie. --foo b --bar c, after setting
         // b as the value for foo, evaluate --bar next and skip 'b'
-        const val = options.withValue &&
-          ArrayPrototypeIncludes(options.withValue, arg) ? argv[++pos] :
-          undefined;
+        const val = options.args[arg]?.withValue ? argv[++pos] : undefined
         storeOptionValue(options, arg, val, result);
       } else {
         // Cases when an arg is specified without a value, example
