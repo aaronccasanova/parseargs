@@ -76,37 +76,12 @@ function getMainArgs() {
 
 const protoKey = '__proto__';
 
-function storeOption({
-  strict,
-  options,
-  result,
-  longOption,
-  shortOption,
-  optionValue,
-}) {
-  const hasOptionConfig = ObjectHasOwn(options, longOption);
-
-  const optionConfig = hasOptionConfig ? options[longOption] : {};
-
-  if (strict) {
-    if (!hasOptionConfig) {
-      throw new ERR_UNKNOWN_OPTION(shortOption == null ? `--${longOption}` : `-${shortOption}`);
-    }
-
-    const shortOptionErr = optionConfig.short ? `-${optionConfig.short}, ` : '';
-
-    if (options[longOption].type === 'string' && optionValue == null) {
-      throw new ERR_INVALID_OPTION_VALUE(`Option '${shortOptionErr}--${longOption} <${longOption}>' argument missing`);
-    }
-
-    if (options[longOption].type === 'boolean' && optionValue != null) {
-      throw new ERR_INVALID_OPTION_VALUE(`Option '${shortOptionErr}--${longOption}' does not take an argument`);
-    }
-  }
-
+function storeOption({ options, result, longOption, optionValue }) {
   if (longOption === protoKey) {
     return;
   }
+  const hasOptionConfig = ObjectHasOwn(options, longOption);
+  const optionConfig = hasOptionConfig ? options[longOption] : {};
 
   // Values
   const usedAsFlag = optionValue === undefined;
@@ -163,6 +138,27 @@ const parseArgs = ({
     positionals: []
   };
 
+  const checkAndStoreOption = ({ longOption, shortOption, optionValue }) => {
+    // Uses strict, options, and result from enclosing context.
+    if (strict) {
+      const hasOptionConfig = ObjectHasOwn(options, longOption);
+      if (!hasOptionConfig) {
+        throw new ERR_UNKNOWN_OPTION(shortOption == null ? `--${longOption}` : `-${shortOption}`);
+      }
+
+      const optionConfig = options[longOption];
+      const shortOptionErr = optionConfig.short ? `-${optionConfig.short}, ` : '';
+      if (options[longOption].type === 'string' && optionValue == null) {
+        throw new ERR_INVALID_OPTION_VALUE(`Option '${shortOptionErr}--${longOption} <${longOption}>' argument missing`);
+      }
+      if (options[longOption].type === 'boolean' && optionValue != null) {
+        throw new ERR_INVALID_OPTION_VALUE(`Option '${shortOptionErr}--${longOption}' does not take an argument`);
+      }
+    }
+
+    storeOption({ options, result, longOption, optionValue });
+  };
+
   let remainingArgs = ArrayPrototypeSlice(args);
   while (remainingArgs.length > 0) {
     const arg = ArrayPrototypeShift(remainingArgs);
@@ -188,14 +184,7 @@ const parseArgs = ({
         // e.g. '-f', 'bar'
         optionValue = ArrayPrototypeShift(remainingArgs);
       }
-      storeOption({
-        strict,
-        options,
-        result,
-        longOption,
-        shortOption,
-        optionValue,
-      });
+      checkAndStoreOption({ longOption, shortOption, optionValue });
       continue;
     }
 
@@ -225,14 +214,7 @@ const parseArgs = ({
       const shortOption = StringPrototypeCharAt(arg, 1);
       const longOption = findLongOptionForShort(shortOption, options);
       const optionValue = StringPrototypeSlice(arg, 2);
-      storeOption({
-        strict,
-        options,
-        result,
-        longOption,
-        shortOption,
-        optionValue,
-      });
+      checkAndStoreOption({ longOption, shortOption, optionValue });
       continue;
     }
 
@@ -244,7 +226,7 @@ const parseArgs = ({
         // e.g. '--foo', 'bar'
         optionValue = ArrayPrototypeShift(remainingArgs);
       }
-      storeOption({ strict, options, result, longOption, optionValue });
+      checkAndStoreOption({ longOption, optionValue });
       continue;
     }
 
@@ -253,7 +235,7 @@ const parseArgs = ({
       const index = StringPrototypeIndexOf(arg, '=');
       const longOption = StringPrototypeSlice(arg, 2, index);
       const optionValue = StringPrototypeSlice(arg, index + 1);
-      storeOption({ strict, options, result, longOption, optionValue });
+      checkAndStoreOption({ longOption, optionValue });
       continue;
     }
 
